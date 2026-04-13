@@ -16,6 +16,10 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
     'https://web-production-c0eca.up.railway.app'
 ).split(',')
 
+# Railway pakai reverse proxy — Django harus percaya header X-Forwarded-Proto
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 INSTALLED_APPS = [
     'django.contrib.admin',
