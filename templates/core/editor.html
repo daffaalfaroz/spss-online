@@ -1,0 +1,1003 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPSS Online - Editor</title>
+<meta name="description" content="Analisis statistik online - SPSS Online">
+<link rel="stylesheet" href="{% static 'css/main.css' %}">
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+<input type="file" id="file-input" accept=".csv,.xlsx,.xls,.sav" style="display:none" onchange="handleFileUpload(this)">
+
+<!-- ═══════════════════════════════════════════════════════════
+     APP LAYOUT
+═══════════════════════════════════════════════════════════ -->
+<div class="app-layout">
+
+  <!-- ── Menu Bar ─────────────────────────────────────────── -->
+  <div class="menu-bar">
+    <div class="menu-brand">SPSS Online</div>
+
+    <div class="menu-item">
+      File
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="triggerUpload()">📂 Import Excel/CSV</div>
+        <div class="menu-dropdown-item" onclick="triggerUpload()">📋 Import SPSS (.sav)</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="exportOutput('pdf')">💾 Export PDF</div>
+        <div class="menu-dropdown-item" onclick="exportOutput('docx')">📄 Export Word</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="window.location='{% url 'logout' %}'">🚪 Logout</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Edit
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="clearOutput()">🗑️ Clear Output</div>
+        <div class="menu-dropdown-item" onclick="document.getElementById('syntax-viewer').innerHTML=''">🗑️ Clear Syntax</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="hapusData()">❌ Hapus Dataset</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Analyze
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="openModal('modal-descriptive')">📊 Descriptive Statistics</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-frequencies')">📋 Frequencies</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-crosstab')">📐 Crosstabulation</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-pearson')">🔗 Korelasi Pearson</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-spearman')">🔗 Korelasi Spearman</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-reg-linear')">📈 Regresi Linear</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-reg-logistic')">📈 Regresi Logistik</div>
+        <div class="menu-dropdown-separator"></div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-reliability')">🔬 Reliabilitas Alpha</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Graphs
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="openModal('modal-bar')">📊 Bar Chart</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-histogram')">📉 Histogram</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-scatter')">⚬ Scatter Plot</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-box')">📦 Box Plot</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-line')">📈 Line Chart</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-pie')">🥧 Pie Chart</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Transform
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="toast('Coming soon: Compute Variable', 'info')">⚙️ Compute Variable</div>
+        <div class="menu-dropdown-item" onclick="toast('Coming soon: Recode', 'info')">🔄 Recode into Different Variables</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Nonparametric
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="openModal('modal-mann-whitney')">Mann-Whitney U</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-wilcoxon')">Wilcoxon</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-kruskal')">Kruskal-Wallis</div>
+        <div class="menu-dropdown-item" onclick="openModal('modal-chi')">Chi-Square</div>
+      </div>
+    </div>
+
+    <div class="menu-item">
+      Help
+      <div class="menu-dropdown">
+        <div class="menu-dropdown-item" onclick="toast('SPSS Online v1.0 - Django + Python + Plotly', 'info', 5000)">ℹ️ Tentang Aplikasi</div>
+        <div class="menu-dropdown-item" onclick="switchTab('syntax');toast('Lihat Syntax Log untuk referensi perintah', 'info')">📖 Panduan Syntax</div>
+      </div>
+    </div>
+
+    <div class="menu-spacer"></div>
+
+    <div class="menu-user" title="Logout" onclick="window.location='{% url 'logout' %}'">
+      <div class="user-avatar">{{ request.user.username|first|upper }}</div>
+      {{ request.user.username }}
+    </div>
+  </div><!-- /menu-bar -->
+
+  <!-- ── Toolbar ───────────────────────────────────────────── -->
+  <div class="toolbar">
+    <button class="tb-btn accent" onclick="triggerUpload()" id="btn-import" title="Import Excel atau CSV">
+      <span class="tb-icon">📂</span> Import Excel/CSV
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn" onclick="switchTab('data-editor');App.viewMode='data';onDatasetChange()" id="btn-data-view" title="Tampilkan Data Editor">
+      <span class="tb-icon">📋</span> Data View
+    </button>
+    <button class="tb-btn" onclick="toggleDataVariableView()" id="btn-var-view" title="Tampilkan Variable View">
+      <span class="tb-icon">🔡</span> Variable View
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn" onclick="addRow()" title="Tambah baris baru">+ Baris</button>
+    <button class="tb-btn" onclick="addColumnModal()" title="Tambah variabel baru">+ Variabel</button>
+    <button class="tb-btn danger" onclick="hapusData()" title="Hapus dataset aktif">Hapus Data</button>
+
+    <div class="toolbar-sep"></div>
+
+    <!-- Analysis quick buttons -->
+    <button class="tb-btn analysis" onclick="openModal('modal-descriptive')">Deskriptif</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-frequencies')">Frekuensi</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-ttest-indep')">T-Test</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-anova-one')">ANOVA</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-pearson')">Korelasi</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-reg-linear')">Regresi</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-normality')">Normalitas</button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn analysis" onclick="openModal('modal-chi')">Chi-Square</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-manova')">MANOVA</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-factor')">Faktor</button>
+    <button class="tb-btn analysis" onclick="openModal('modal-cluster')">Klaster</button>
+    <button class="tb-btn" onclick="openModal('modal-bar')">Chart</button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn accent" onclick="exportOutput('pdf')" title="Export output ke PDF">Export PDF</button>
+    <button class="tb-btn" onclick="exportOutput('docx')" title="Export output ke Word">Export Word</button>
+  </div><!-- /toolbar -->
+
+  <!-- ── Dataset Bar ───────────────────────────────────────── -->
+  <div class="dataset-bar">
+    <span class="dataset-label">Dataset:</span>
+    <select class="dataset-select" id="dataset-select" onchange="onDatasetChange()">
+      <option value="">-- Upload atau Pilih Dataset --</option>
+      {% for ds in datasets %}
+      <option value="{{ ds.id }}">{{ ds.name }} ({{ ds.rows }}×{{ ds.columns }})</option>
+      {% endfor %}
+    </select>
+    <span class="dataset-info" id="dataset-info"></span>
+  </div>
+
+  <!-- ── Tab Bar ───────────────────────────────────────────── -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="data-editor" onclick="switchTab('data-editor')" id="tab-data-editor">Data Editor</button>
+    <button class="tab-btn" data-tab="output-viewer" onclick="switchTab('output-viewer')" id="tab-output-viewer">Output Viewer</button>
+    <button class="tab-btn" data-tab="chart-viewer" onclick="switchTab('chart-viewer')" id="tab-chart-viewer">Chart Viewer</button>
+    <button class="tab-btn" data-tab="syntax" onclick="switchTab('syntax')" id="tab-syntax">Syntax</button>
+  </div>
+
+  <!-- ── Main Content ──────────────────────────────────────── -->
+  <div class="main-content">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">ANALISIS</div>
+
+        <div class="sidebar-item" data-type="descriptive" onclick="sidebarAnalysis('descriptive')">
+          <span class="sidebar-dot dot-blue"></span>Deskriptif
+        </div>
+        <div class="sidebar-item" data-type="frequencies" onclick="sidebarAnalysis('frequencies')">
+          <span class="sidebar-dot dot-blue"></span>Frekuensi
+        </div>
+        <div class="sidebar-item" data-type="crosstab" onclick="sidebarAnalysis('crosstab')">
+          <span class="sidebar-dot dot-blue"></span>Crosstab
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="ttest_independent" onclick="sidebarAnalysis('ttest_independent')">
+          <span class="sidebar-dot dot-green"></span>T-Test Independen
+        </div>
+        <div class="sidebar-item" data-type="ttest_onesample" onclick="sidebarAnalysis('ttest_onesample')">
+          <span class="sidebar-dot dot-green"></span>T-Test 1 Sampel
+        </div>
+        <div class="sidebar-item" data-type="ttest_paired" onclick="sidebarAnalysis('ttest_paired')">
+          <span class="sidebar-dot dot-green"></span>T-Test Berpasangan
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="anova_oneway" onclick="sidebarAnalysis('anova_oneway')">
+          <span class="sidebar-dot dot-orange"></span>ANOVA Satu Arah
+        </div>
+        <div class="sidebar-item" data-type="anova_twoway" onclick="sidebarAnalysis('anova_twoway')">
+          <span class="sidebar-dot dot-orange"></span>ANOVA Dua Arah
+        </div>
+        <div class="sidebar-item" data-type="manova" onclick="sidebarAnalysis('manova')">
+          <span class="sidebar-dot dot-orange"></span>MANOVA
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="correlation_pearson" onclick="sidebarAnalysis('correlation_pearson')">
+          <span class="sidebar-dot dot-cyan"></span>Korelasi Pearson
+        </div>
+        <div class="sidebar-item" data-type="correlation_spearman" onclick="sidebarAnalysis('correlation_spearman')">
+          <span class="sidebar-dot dot-cyan"></span>Korelasi Spearman
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="regression_linear" onclick="sidebarAnalysis('regression_linear')">
+          <span class="sidebar-dot dot-purple"></span>Regresi Linear
+        </div>
+        <div class="sidebar-item" data-type="regression_logistic" onclick="sidebarAnalysis('regression_logistic')">
+          <span class="sidebar-dot dot-purple"></span>Regresi Logistik
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="normality" onclick="sidebarAnalysis('normality')">
+          <span class="sidebar-dot dot-orange"></span>Uji Normalitas
+        </div>
+        <div class="sidebar-item" data-type="chi_square" onclick="sidebarAnalysis('chi_square')">
+          <span class="sidebar-dot dot-orange"></span>Chi-Square
+        </div>
+        <div class="sidebar-item" data-type="mann_whitney" onclick="sidebarAnalysis('mann_whitney')">
+          <span class="sidebar-dot dot-orange"></span>Mann-Whitney U
+        </div>
+        <div class="sidebar-item" data-type="wilcoxon" onclick="sidebarAnalysis('wilcoxon')">
+          <span class="sidebar-dot dot-orange"></span>Wilcoxon
+        </div>
+        <div class="sidebar-item" data-type="kruskal_wallis" onclick="sidebarAnalysis('kruskal_wallis')">
+          <span class="sidebar-dot dot-orange"></span>Kruskal-Wallis
+        </div>
+
+        <div class="sidebar-sep"></div>
+
+        <div class="sidebar-item" data-type="factor" onclick="sidebarAnalysis('factor')">
+          <span class="sidebar-dot dot-purple"></span>Analisis Faktor
+        </div>
+        <div class="sidebar-item" data-type="cluster" onclick="sidebarAnalysis('cluster')">
+          <span class="sidebar-dot dot-purple"></span>Analisis Klaster
+        </div>
+        <div class="sidebar-item" data-type="reliability" onclick="sidebarAnalysis('reliability')">
+          <span class="sidebar-dot dot-purple"></span>Reliabilitas (Alpha)
+        </div>
+      </div>
+
+      <div class="sidebar-sep"></div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">CHART</div>
+        <div class="sidebar-item" data-type="bar" onclick="sidebarAnalysis('bar')">
+          <span class="sidebar-dot dot-blue"></span>Bar Chart
+        </div>
+        <div class="sidebar-item" data-type="histogram" onclick="sidebarAnalysis('histogram')">
+          <span class="sidebar-dot dot-blue"></span>Histogram
+        </div>
+        <div class="sidebar-item" data-type="scatter" onclick="sidebarAnalysis('scatter')">
+          <span class="sidebar-dot dot-blue"></span>Scatter Plot
+        </div>
+        <div class="sidebar-item" data-type="box" onclick="sidebarAnalysis('box')">
+          <span class="sidebar-dot dot-blue"></span>Box Plot
+        </div>
+        <div class="sidebar-item" data-type="line" onclick="sidebarAnalysis('line')">
+          <span class="sidebar-dot dot-blue"></span>Line Chart
+        </div>
+        <div class="sidebar-item" data-type="pie" onclick="sidebarAnalysis('pie')">
+          <span class="sidebar-dot dot-blue"></span>Pie Chart
+        </div>
+      </div>
+    </div><!-- /sidebar -->
+
+    <!-- ── Tab Panels ──────────────────────────────────────── -->
+
+    <!-- Data Editor Panel -->
+    <div class="tab-panel active" id="panel-data-editor">
+      <div class="data-editor-panel" id="data-editor-panel">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-state-icon">📊</div>
+          <h3>Belum ada data</h3>
+          <p>Upload file CSV, Excel, atau SPSS (.sav) untuk memulai analisis statistik</p>
+          <div class="upload-zone" onclick="triggerUpload()">
+            📂 Klik di sini atau seret file untuk mengupload
+          </div>
+        </div>
+        <div id="data-table-wrapper" class="data-table-wrapper"></div>
+        <div class="loading-overlay" id="loading-overlay"></div>
+      </div>
+    </div>
+
+    <!-- Output Viewer Panel -->
+    <div class="tab-panel" id="panel-output-viewer">
+      <div class="output-controls">
+        <span style="font-size:13px;font-weight:500;color:var(--text-secondary)">📋 Output Viewer</span>
+        <div class="output-spacer"></div>
+        <button class="btn-sm blue" onclick="exportOutput('pdf')">💾 Export PDF</button>
+        <button class="btn-sm blue" onclick="exportOutput('docx')">📄 Export Word</button>
+        <button class="btn-sm" onclick="clearOutput()">🗑️ Bersihkan</button>
+      </div>
+      <div class="output-viewer" id="output-viewer">
+        <div id="output-empty" class="empty-state" style="height:100%">
+          <div class="empty-state-icon">📋</div>
+          <h3>Output Viewer</h3>
+          <p>Hasil analisis statistik akan muncul di sini.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Viewer Panel -->
+    <div class="tab-panel" id="panel-chart-viewer">
+      <div class="chart-viewer" id="chart-viewer">
+        <div id="chart-empty" class="empty-state" style="height:100%;width:100%">
+          <div class="empty-state-icon">📈</div>
+          <h3>Chart Viewer</h3>
+          <p>Grafik akan muncul di sini setelah Anda menjalankan analisis chart.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Syntax Panel -->
+    <div class="tab-panel" id="panel-syntax">
+      <div class="output-controls">
+        <span style="font-size:13px;font-weight:500;color:var(--text-secondary)">🖥️ Syntax Log</span>
+        <div class="output-spacer"></div>
+        <button class="btn-sm" onclick="document.getElementById('syntax-viewer').innerHTML='';App.syntaxLog=[]">🗑️ Clear Syntax</button>
+      </div>
+      <div class="syntax-viewer" id="syntax-viewer"></div>
+    </div>
+
+  </div><!-- /main-content -->
+
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="green">●</span>
+      <span id="status-dataset">Tidak ada dataset aktif</span>
+    </div>
+    <div class="status-item">
+      <span class="blue">⬡</span>
+      SPSS Online v1.0
+    </div>
+    <div class="status-item">
+      <span id="status-time"></span>
+    </div>
+  </div>
+
+</div><!-- /app-layout -->
+
+<!-- Save Bar -->
+<div class="save-bar" id="save-bar">
+  <span style="font-size:16px">⚠️</span>
+  <span class="save-bar-text" id="save-bar-info">Ada perubahan yang belum disimpan</span>
+  <div style="flex:1"></div>
+  <button class="btn-sm" onclick="discardChanges()">↩ Batalkan</button>
+  <button class="btn-sm blue" onclick="saveTableData()">💾 Simpan</button>
+</div>
+
+<!-- Row Context Menu -->
+<div id="row-ctx-menu" class="ctx-menu" style="display:none">
+  <div class="ctx-label" id="ctx-row-label">Baris</div>
+  <div class="ctx-item" onclick="ctxInsertAbove()">⬆ Insert Baris di Atas</div>
+  <div class="ctx-item" onclick="ctxInsertBelow()">⬇ Insert Baris di Bawah</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="ctxDelRow()">🗑 Hapus Baris Ini</div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL OVERLAY
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+
+  <!-- ── DESCRIPTIVE ──────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-descriptive" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 Descriptive Statistics</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables (pilih satu atau lebih)</label>
+      <select class="modal-select num-multi" id="desc-vars" multiple size="8"></select>
+      <div class="modal-hint">Ctrl+Click untuk memilih beberapa variabel numerik</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitDescriptive()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── FREQUENCIES ──────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-frequencies" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📋 Frequencies</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variable(s)</label>
+      <select class="modal-select col-multi" id="freq-vars" multiple size="8"></select>
+      <div class="modal-hint">Ctrl+Click untuk memilih beberapa variabel</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitFrequencies()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── CROSSTAB ─────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-crosstab" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📐 Crosstabulation</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Row Variable</label>
+          <select class="modal-select col-select" id="crosstab-row"></select>
+        </div>
+        <div>
+          <label class="modal-label">Column Variable</label>
+          <select class="modal-select col-select" id="crosstab-col"></select>
+        </div>
+      </div>
+      <div class="modal-hint" style="margin-top:8px">Chi-Square test akan otomatis disertakan.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitCrosstab()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── T-TEST INDEPENDEN ────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-ttest-indep" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🧪 T-Test Independen</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Dependent Variable</label>
+          <select class="modal-select num-select" id="ttestind-dep"></select>
+        </div>
+        <div>
+          <label class="modal-label">Grouping Variable</label>
+          <select class="modal-select col-select" id="ttestind-grp"></select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div>
+          <label class="modal-label">Group 1 Value</label>
+          <input class="modal-input" id="ttestind-g1" placeholder="Contoh: 1 atau Laki-laki">
+        </div>
+        <div>
+          <label class="modal-label">Group 2 Value</label>
+          <input class="modal-input" id="ttestind-g2" placeholder="Contoh: 2 atau Perempuan">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitTTestIndep()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── T-TEST 1 SAMPEL ──────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-ttest-one" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🧪 T-Test 1 Sampel</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variable(s)</label>
+      <select class="modal-select num-multi" id="ttest1-vars" multiple size="6"></select>
+      <div style="margin-top:12px">
+        <label class="modal-label">Test Value (μ₀)</label>
+        <input class="modal-input" id="ttest1-val" type="number" value="0" placeholder="Default: 0">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitTTestOne()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── T-TEST BERPASANGAN ───────────────────────────────── -->
+  <div class="modal modal-content" id="modal-ttest-paired" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🧪 T-Test Berpasangan</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Pasangan Variabel</label>
+      <div id="paired-container">
+        <div class="pair-row paired-row">
+          <select class="modal-select num-select paired-v1"><option value="">Var 1</option></select>
+          <span style="color:var(--text-muted);font-size:12px">↔</span>
+          <select class="modal-select num-select paired-v2"><option value="">Var 2</option></select>
+        </div>
+      </div>
+      <button class="add-pair-btn" onclick="addPairRow()">+ Tambah Pasangan</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitTTestPaired()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── ANOVA SATU ARAH ──────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-anova-one" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 ANOVA Satu Arah</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Dependent Variable</label>
+          <select class="modal-select num-select" id="anova1-dep"></select>
+        </div>
+        <div>
+          <label class="modal-label">Factor (Grouping)</label>
+          <select class="modal-select col-select" id="anova1-fac"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitAnovaOne()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── ANOVA DUA ARAH ───────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-anova-two" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 ANOVA Dua Arah</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Dependent Variable</label>
+          <select class="modal-select num-select" id="anova2-dep"></select>
+        </div>
+        <div>
+          <label class="modal-label">Factor 1</label>
+          <select class="modal-select col-select" id="anova2-fac1"></select>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label class="modal-label">Factor 2</label>
+        <select class="modal-select col-select" id="anova2-fac2"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitAnovaTwo()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── MANOVA ───────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-manova" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 MANOVA</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Dependent Variables (pilih ≥2)</label>
+      <select class="modal-select num-multi" id="manova-deps" multiple size="6"></select>
+      <div style="margin-top:12px">
+        <label class="modal-label">Factor Variable</label>
+        <select class="modal-select col-select" id="manova-fac"></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitMANOVA()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── PEARSON ──────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-pearson" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔗 Korelasi Pearson</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables (pilih ≥2)</label>
+      <select class="modal-select num-multi" id="pearson-vars" multiple size="8"></select>
+      <div class="modal-hint">Ctrl+Click untuk memilih beberapa variabel numerik</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitCorrPearson()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── SPEARMAN ─────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-spearman" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔗 Korelasi Spearman</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables (pilih ≥2)</label>
+      <select class="modal-select num-multi" id="spearman-vars" multiple size="8"></select>
+      <div class="modal-hint">Ctrl+Click untuk memilih beberapa variabel numerik</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitCorrSpearman()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── REGRESI LINEAR ───────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-reg-linear" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📈 Regresi Linear</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Dependent Variable (Y)</label>
+      <select class="modal-select num-select" id="reglin-dep" style="margin-bottom:12px"></select>
+      <label class="modal-label">Independent Variables (X)</label>
+      <select class="modal-select num-multi" id="reglin-indep" multiple size="7"></select>
+      <div class="modal-hint">Ctrl+Click untuk memilih lebih dari 1 prediktor (regresi berganda)</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitRegLinear()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── REGRESI LOGISTIK ─────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-reg-logistic" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📈 Regresi Logistik</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Dependent Variable (Binary/0-1)</label>
+      <select class="modal-select col-select" id="reglog-dep" style="margin-bottom:12px"></select>
+      <label class="modal-label">Independent Variables (X)</label>
+      <select class="modal-select num-multi" id="reglog-indep" multiple size="7"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitRegLogistic()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── NORMALITAS ───────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-normality" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔬 Uji Normalitas</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables</label>
+      <select class="modal-select num-multi" id="norm-vars" multiple size="8"></select>
+      <div class="modal-hint">Shapiro-Wilk + Kolmogorov-Smirnov + Skewness/Kurtosis</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitNormality()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── CHI-SQUARE ───────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-chi" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📐 Chi-Square Test</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Row Variable</label>
+          <select class="modal-select col-select" id="chi-row"></select>
+        </div>
+        <div>
+          <label class="modal-label">Column Variable</label>
+          <select class="modal-select col-select" id="chi-col"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitChiSquare()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── MANN-WHITNEY ─────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-mann-whitney" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 Mann-Whitney U Test</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Test Variable</label>
+          <select class="modal-select num-select" id="mw-dep"></select>
+        </div>
+        <div>
+          <label class="modal-label">Grouping Variable</label>
+          <select class="modal-select col-select" id="mw-grp"></select>
+        </div>
+      </div>
+      <div class="form-row" style="margin-top:12px">
+        <div>
+          <label class="modal-label">Group 1</label>
+          <input class="modal-input" id="mw-g1" placeholder="Nilai Group 1">
+        </div>
+        <div>
+          <label class="modal-label">Group 2</label>
+          <input class="modal-input" id="mw-g2" placeholder="Nilai Group 2">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitMannWhitney()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── WILCOXON ─────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-wilcoxon" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 Wilcoxon Signed-Rank Test</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Variable 1</label>
+          <select class="modal-select num-select" id="wilcox-v1"></select>
+        </div>
+        <div>
+          <label class="modal-label">Variable 2</label>
+          <select class="modal-select num-select" id="wilcox-v2"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitWilcoxon()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── KRUSKAL-WALLIS ───────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-kruskal" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 Kruskal-Wallis Test</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Test Variable</label>
+          <select class="modal-select num-select" id="krus-dep"></select>
+        </div>
+        <div>
+          <label class="modal-label">Grouping Variable</label>
+          <select class="modal-select col-select" id="krus-grp"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitKruskal()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── FAKTOR ───────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-factor" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔬 Analisis Faktor</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables (pilih ≥2)</label>
+      <select class="modal-select num-multi" id="factor-vars" multiple size="7"></select>
+      <div style="margin-top:12px">
+        <label class="modal-label">Jumlah Faktor (0 = otomatis)</label>
+        <input class="modal-input" id="factor-nfact" type="number" value="0" min="0" max="20">
+      </div>
+      <div class="modal-hint">Rotasi: Varimax. Otomatis jika nilai = 0.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitFactor()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── KLASTER ──────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-cluster" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔬 Analisis Klaster (K-Means)</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variables (pilih ≥1)</label>
+      <select class="modal-select num-multi" id="cluster-vars" multiple size="7"></select>
+      <div style="margin-top:12px">
+        <label class="modal-label">Jumlah Klaster (K)</label>
+        <input class="modal-input" id="cluster-nclusters" type="number" value="3" min="2" max="20">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitCluster()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── RELIABILITAS ─────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-reliability" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🔬 Reliabilitas (Cronbach's Alpha)</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Items/Variables (pilih ≥2)</label>
+      <select class="modal-select num-multi" id="rel-vars" multiple size="8"></select>
+      <div class="modal-hint">Pilih semua item/pertanyaan dari skala yang sama</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitReliability()">▶ Jalankan</button>
+    </div>
+  </div>
+
+  <!-- ── BAR CHART ────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-bar" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📊 Bar Chart</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variabel X (Kategori)</label>
+      <select class="modal-select col-select" id="bar-x" style="margin-bottom:12px"></select>
+      <label class="modal-label">Variabel Y (Numerik, opsional)</label>
+      <select class="modal-select num-select" id="bar-y"></select>
+      <div class="modal-hint">Jika Y kosong, akan menghitung frekuensi X</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitBarChart()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+  <!-- ── HISTOGRAM ────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-histogram" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📉 Histogram</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variabel</label>
+      <select class="modal-select num-select" id="hist-x" style="margin-bottom:12px"></select>
+      <label class="modal-label">Jumlah Bins</label>
+      <input class="modal-input" id="hist-bins" type="number" value="20" min="5" max="200">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitHistogram()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+  <!-- ── SCATTER ──────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-scatter" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">⚬ Scatter Plot</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div>
+          <label class="modal-label">Variabel X</label>
+          <select class="modal-select num-select" id="scatter-x"></select>
+        </div>
+        <div>
+          <label class="modal-label">Variabel Y</label>
+          <select class="modal-select num-select" id="scatter-y"></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitScatter()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+  <!-- ── BOX PLOT ─────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-box" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📦 Box Plot</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variabel Y (Numerik)</label>
+      <select class="modal-select num-select" id="box-y" style="margin-bottom:12px"></select>
+      <label class="modal-label">Grouping Variable X (Opsional)</label>
+      <select class="modal-select col-select" id="box-x"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitBoxPlot()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+  <!-- ── LINE CHART ───────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-line" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">📈 Line Chart</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variabel X (Sumbu horizontal)</label>
+      <select class="modal-select col-select" id="line-x" style="margin-bottom:12px"></select>
+      <label class="modal-label">Variabel Y (pilih ≥1)</label>
+      <select class="modal-select num-multi" id="line-ys" multiple size="6"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitLineChart()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+  <!-- ── ADD COLUMN MODAL ─────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-add-column" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">➕ Tambah Variabel Baru</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Nama Variabel/Kolom</label>
+      <input class="modal-input" id="new-col-name" placeholder="Contoh: Skor_Total"
+        style="margin-bottom:12px" onkeydown="if(event.key==='Enter')confirmAddColumn()" autofocus>
+      <label class="modal-label">Nilai Default (opsional)</label>
+      <input class="modal-input" id="new-col-default" placeholder="Kosongkan jika tidak ada nilai default"
+        onkeydown="if(event.key==='Enter')confirmAddColumn()">
+      <div class="modal-hint" style="margin-top:8px">Variabel baru akan ditambahkan di kolom paling kanan tabel.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="confirmAddColumn()">+ Tambah Variabel</button>
+    </div>
+  </div>
+
+  <!-- ── PIE CHART ────────────────────────────────────────── -->
+  <div class="modal modal-content" id="modal-pie" style="display:none">
+    <div class="modal-header">
+      <span class="modal-title">🥧 Pie Chart</span>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="modal-label">Variabel Names/Kategori</label>
+      <select class="modal-select col-select" id="pie-names" style="margin-bottom:12px"></select>
+      <label class="modal-label">Variabel Values (Numerik, opsional)</label>
+      <select class="modal-select num-select" id="pie-values"></select>
+      <div class="modal-hint">Jika Values kosong, akan menghitung frekuensi otomatis</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-cancel" onclick="closeModal()">Batal</button>
+      <button class="btn-modal-run" onclick="submitPieChart()">📊 Buat Grafik</button>
+    </div>
+  </div>
+
+</div><!-- /modal-overlay -->
+
+<!-- Status time update -->
+<script>
+setInterval(() => {
+    const el = document.getElementById('status-time');
+    if (el) el.textContent = new Date().toLocaleTimeString('id-ID');
+}, 1000);
+</script>
+
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{% extends 'auth/base_auth.html' %}
+{% block content %}
+<h2 class="auth-title">Buat Akun Baru</h2>
+<p class="auth-subtitle">Daftar gratis untuk mengakses semua fitur analisis statistik.</p>
+
+{% if form.errors %}
+<div class="error-list">
+    {% for field in form %}{% for err in field.errors %}<div>{{ err }}</div>{% endfor %}{% endfor %}
+    {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" id="register-form">
+    {% csrf_token %}
+    <div class="form-group">
+        <label for="id_username">Username</label>
+        <input type="text" name="username" id="id_username" placeholder="Pilih username" autocomplete="username" required maxlength="150">
+        <div class="help-text">Huruf, angka, dan karakter @/./+/-/_ saja.</div>
+    </div>
+    <div class="form-group">
+        <label for="id_password1">Password</label>
+        <input type="password" name="password1" id="id_password1" placeholder="Buat password kuat" autocomplete="new-password" required>
+        <div class="help-text">Minimal 8 karakter, tidak terlalu umum.</div>
+    </div>
+    <div class="form-group">
+        <label for="id_password2">Konfirmasi Password</label>
+        <input type="password" name="password2" id="id_password2" placeholder="Ulangi password" autocomplete="new-password" required>
+    </div>
+    <button type="submit" class="btn-primary" id="register-btn">
+        ✨ Daftar Sekarang
+    </button>
+</form>
+
+<div class="auth-link">
+    Sudah punya akun? <a href="{% url 'login' %}">Masuk di sini</a>
+</div>
+
+<script>
+document.getElementById('register-form').addEventListener('submit', function() {
+    const btn = document.getElementById('register-btn');
+    btn.textContent = '⏳ Mendaftar...';
+    btn.disabled = true;
+});
+</script>
+{% endblock %}
