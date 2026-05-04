@@ -29,8 +29,6 @@
         <div class="menu-dropdown-separator"></div>
         <div class="menu-dropdown-item" onclick="exportOutput('pdf')">💾 Export PDF</div>
         <div class="menu-dropdown-item" onclick="exportOutput('docx')">📄 Export Word</div>
-        <div class="menu-dropdown-separator"></div>
-        <div class="menu-dropdown-item" onclick="window.location='{% url 'logout' %}'">🚪 Logout</div>
       </div>
     </div>
 
@@ -100,11 +98,6 @@
     </div>
 
     <div class="menu-spacer"></div>
-
-    <div class="menu-user" title="Logout" onclick="window.location='{% url 'logout' %}'">
-      <div class="user-avatar">{{ request.user.username|first|upper }}</div>
-      {{ request.user.username }}
-    </div>
   </div><!-- /menu-bar -->
 
   <!-- ── Toolbar ───────────────────────────────────────────── -->

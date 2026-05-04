@@ -4,10 +4,6 @@ import io
 import pandas as pd
 import numpy as np
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth import login, authenticate, logout
-from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
-from django.contrib.auth.models import User
 from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -19,50 +15,11 @@ from analysis.charts import ChartGenerator
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# AUTH VIEWS
-# ──────────────────────────────────────────────────────────────────────────────
-
-def register_view(request):
-    if request.user.is_authenticated:
-        return redirect('editor')
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            messages.success(request, f'Selamat datang, {user.username}!')
-            return redirect('editor')
-    else:
-        form = UserCreationForm()
-    return render(request, 'auth/register.html', {'form': form})
-
-
-def login_view(request):
-    if request.user.is_authenticated:
-        return redirect('editor')
-    if request.method == 'POST':
-        form = AuthenticationForm(data=request.POST)
-        if form.is_valid():
-            user = form.get_user()
-            login(request, user)
-            return redirect('editor')
-    else:
-        form = AuthenticationForm()
-    return render(request, 'auth/login.html', {'form': form})
-
-
-def logout_view(request):
-    logout(request)
-    return redirect('login')
-
-
-# ──────────────────────────────────────────────────────────────────────────────
 # MAIN EDITOR
 # ──────────────────────────────────────────────────────────────────────────────
 
-@login_required
 def editor_view(request):
-    datasets = Dataset.objects.filter(user=request.user).order_by('-created_at')[:10]
+    datasets = Dataset.objects.all().order_by('-created_at')[:10]
     return render(request, 'core/editor.html', {'datasets': datasets})
 
 
@@ -101,7 +58,6 @@ def df_to_safe_json(df):
     return json.loads(df.to_json(orient='values', default_handler=str))
 
 
-@login_required
 def upload_dataset(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -116,7 +72,6 @@ def upload_dataset(request):
 
     try:
         dataset = Dataset(
-            user=request.user,
             name=os.path.splitext(file.name)[0],
             original_filename=file.name,
             file_type=ext.lstrip('.'),
@@ -164,9 +119,8 @@ def upload_dataset(request):
         return JsonResponse({'error': f'Error membaca file: {str(e)}'}, status=400)
 
 
-@login_required
 def get_dataset(request, dataset_id):
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
     df = load_df(dataset)
     data = df_to_safe_json(df)
     return JsonResponse({
@@ -181,9 +135,8 @@ def get_dataset(request, dataset_id):
     })
 
 
-@login_required
 def list_datasets(request):
-    datasets = Dataset.objects.filter(user=request.user).order_by('-created_at')
+    datasets = Dataset.objects.all().order_by('-created_at')
     result = []
     for ds in datasets:
         result.append({
@@ -197,11 +150,10 @@ def list_datasets(request):
     return JsonResponse({'datasets': result})
 
 
-@login_required
 def delete_dataset(request, dataset_id):
     if request.method != 'DELETE':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
     try:
         if dataset.file and os.path.exists(dataset.file.path):
             os.remove(dataset.file.path)
@@ -211,13 +163,12 @@ def delete_dataset(request, dataset_id):
     return JsonResponse({'success': True})
 
 
-@login_required
 def save_dataset(request, dataset_id):
     """Save modified dataset (edited cells, added/removed rows & columns)."""
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
 
     try:
         body = json.loads(request.body)
@@ -278,7 +229,6 @@ def save_dataset(request, dataset_id):
 # ANALYSIS API
 # ──────────────────────────────────────────────────────────────────────────────
 
-@login_required
 def run_analysis(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -295,7 +245,7 @@ def run_analysis(request):
     if not dataset_id or not analysis_type:
         return JsonResponse({'error': 'dataset_id and analysis_type are required'}, status=400)
 
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
 
     try:
         df = load_df(dataset)
@@ -403,7 +353,6 @@ def run_analysis(request):
         return JsonResponse({'error': str(e), 'traceback': traceback.format_exc()}, status=500)
 
 
-@login_required
 def generate_chart(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -417,7 +366,7 @@ def generate_chart(request):
     chart_type = body.get('chart_type')
     params = body.get('params', {})
 
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
 
     try:
         df = load_df(dataset)
@@ -461,7 +410,6 @@ def generate_chart(request):
 # EXPORT
 # ──────────────────────────────────────────────────────────────────────────────
 
-@login_required
 def export_output(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
@@ -533,15 +481,13 @@ def export_output(request):
 # DATA EDITOR OPERATIONS
 # ──────────────────────────────────────────────────────────────────────────────
 
-@login_required
 def add_row(request):
     """Add empty row(s) to dataset."""
     return JsonResponse({'success': True, 'message': 'Row added (client-side)'})
 
 
-@login_required
 def get_analysis_history(request, dataset_id):
-    dataset = get_object_or_404(Dataset, id=dataset_id, user=request.user)
+    dataset = get_object_or_404(Dataset, id=dataset_id)
     analyses = AnalysisResult.objects.filter(dataset=dataset).order_by('-created_at')[:20]
     result = [{
         'id': a.id,

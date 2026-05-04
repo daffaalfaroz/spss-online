@@ -1,10 +1,8 @@
 from django.db import models
-from django.contrib.auth.models import User
 import json
 
 
 class Dataset(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='datasets')
     name = models.CharField(max_length=255)
     original_filename = models.CharField(max_length=255)
     file = models.FileField(upload_to='datasets/')
@@ -19,7 +17,7 @@ class Dataset(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.name} ({self.user.username})"
+        return self.name
 
     def get_column_info(self):
         return json.loads(self.column_info)
