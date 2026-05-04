@@ -10,7 +10,7 @@ SECRET_KEY = os.environ.get(
     'django-insecure-spss-online-2025-secret-key-please-change-in-production'
 )
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
+ALLOWED_HOSTS = ['*']
 CSRF_TRUSTED_ORIGINS = os.environ.get(
     'CSRF_TRUSTED_ORIGINS',
     'https://web-production-c0eca.up.railway.app'
